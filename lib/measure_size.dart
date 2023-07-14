@@ -1,63 +1,80 @@
+import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 
-/// A stateful widget that measures the size of a child widget immediately after
-/// it is rendered.
-class MeasureSize extends StatefulWidget
+/// The widget that measures the size of the child widget during building the
+/// widget tree.
+///
+/// The [onSizeChanged] and [onSizeUnchanged] methods invoke during building
+/// the widget tree, so be sure these callbacks don't invoke [State.setState]
+/// method. If you need change the state, do it after drawing the frame using
+/// [SchedulerBinding.addPostFrameCallback].
+class SizeMeter extends SingleChildRenderObjectWidget
 {
-  /// A [Widget] to be rendered and measured
-  final Widget child;
-
-  /// A callback fired every time after rendering when the size of the [child]
-  /// becomes known or changes.
+  /// The callback fired every time the size of the [child] becomes known or
+  /// changes.
   final ValueChanged<Size>? onSizeChanged;
 
-  /// A callback fired every time after rendering the [child] if it's size
-  /// remains the same.
+  /// The callback fired every time the [child] rebuilds with the same size.
   final VoidCallback? onSizeUnchanged;
 
-  const MeasureSize({
+  const SizeMeter({
     super.key,
-    required this.child,
-    required this.onSizeChanged,
+    super.child,
+    this.onSizeChanged,
     this.onSizeUnchanged,
   });
 
   @override
-  State<MeasureSize> createState() => _MeasureSizeState();
-}
-
-
-class _MeasureSizeState extends State<MeasureSize>
-{
-  final widgetKey = GlobalKey();
-
-  Size? oldSize;
-
-  @override
-  Widget build(BuildContext context)
+  RenderObject createRenderObject(final BuildContext context)
   {
-    SchedulerBinding.instance.addPostFrameCallback(postFrameCallback);
-    return Container(
-      key: widgetKey,
-      child: widget.child,
+    return SizeMeterRenderBox(
+      onSizeChanged: onSizeChanged,
+      onSizeUnchanged: onSizeUnchanged,
     );
   }
 
-  void postFrameCallback(_)
+  @override
+  void updateRenderObject(final BuildContext context,
+    covariant SizeMeterRenderBox renderObject,
+  )
   {
-    final context = widgetKey.currentContext;
-    if (context != null) {
-      final newSize = context.size;
-      if (newSize != null) {
-        if (oldSize != newSize) {
-          oldSize = newSize;
-          widget.onSizeChanged?.call(newSize);
-        } else {
-          widget.onSizeUnchanged?.call();
-        }
+    renderObject
+      ..onSizeChanged = onSizeChanged
+      ..onSizeUnchanged = onSizeUnchanged
+    ;
+    super.updateRenderObject(context, renderObject);
+  }
+}
+
+
+class SizeMeterRenderBox extends RenderProxyBox
+{
+  ValueChanged<Size>? onSizeChanged;
+  VoidCallback? onSizeUnchanged;
+
+  SizeMeterRenderBox({
+    final RenderBox? child,
+    this.onSizeChanged,
+    this.onSizeUnchanged,
+  })
+  : super(child);
+
+  @override
+  void performLayout()
+  {
+    super.performLayout();
+    if (_size == null || _size != size) {
+      try {
+        onSizeChanged?.call(size);
+      } finally {
+        _size = size;
       }
+    } else {
+      onSizeUnchanged?.call();
     }
   }
+
+  Size? _size;
 }
